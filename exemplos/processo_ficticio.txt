@@ -1,0 +1,27 @@
+[PÁGINA 1]
+Petição inicial. Não deve constar na análise: alegação de pagamento R$ 12.345,67.
+[PÁGINA 2]
+PODER JUDICIÁRIO
+SENTENÇA
+Vistos.
+Ante o exposto, JULGO PARCIALMENTE PROCEDENTES os pedidos.
+Perícia realizada, honorários periciais de R$ 1.500,00 atribuídos ao reclamado.
+Honorários de sucumbência recíproca: 5% para cada parte sobre as parcelas pertinentes.
+Custas processuais fixadas em R$ 200,00.
+[PÁGINA 3]
+Em 10/03/2026 foi interposto recurso ordinário (RO) ID ab12cd34.
+Comprovante de depósito recursal R$ 12.000,00 ID cd34ef56.
+Acórdão: NEGAR PROVIMENTO ao recurso. 14/05/2026.
+Certifico trânsito em julgado em 17/06/2026.
+[PÁGINA 4]
+Despacho: apresentem os cálculos de liquidação.
+A parte autora apresentou planilha de cálculos, ID ef56ab78.
+Impugnação aos cálculos protocolada pela reclamada.
+Homologo os cálculos de liquidação no valor líquido de R$ 27.500,00 em 21/07/2026.
+[PÁGINA 5]
+SISBAJUD: bloqueio positivo R$ 7.000,00 em nome da executada.
+RENAJUD indicou veículo.
+Mandado de penhora ID 1234abcd devolvido negativo.
+IDPJ requerido, pendente de decisão.
+Alvará expedido no valor de R$ 2.000,00 para conferência do levantamento.
+Despacho de remessa ao CEJUSC para audiência de conciliação.

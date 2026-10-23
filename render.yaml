@@ -1,0 +1,15 @@
+# Implantação de laboratório com dados fictícios/públicos; uso institucional requer avaliação de TI/LGPD.
+services:
+  - type: web
+    name: cejusc-auditoria-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/v1/saude
+    autoDeployTrigger: commit
+    envVars:
+      - key: CEJUSC_API_KEY
+        generateValue: true
+      - key: DATAJUD_API_KEY
+        sync: false
+      - key: PORT
+        value: "10000"
