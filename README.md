@@ -1,3 +1,5 @@
+**v4 / Chat-JT:** interface Gradio em `/chatjt` (funções autenticadas), detalhes em `INTEGRACAO_CHAT_JT.md`.
+
 # Auditoria CEJUSC — site + API HTTP para Chat-JT
 
 **Versão 2.0.** Site local e API FastAPI que reutilizam o motor de triagem documental do projeto anterior.

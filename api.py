@@ -28,7 +28,7 @@ TRT_RE = re.compile(r'^\d{7}-\d{2}\.\d{4}\.5\.(\d{2})\.\d{4}$')
 
 app = FastAPI(
     title='API CEJUSC – Auditoria Processual Trabalhista',
-    version='3.0.0',
+    version='4.0.0',
     description=('API de apoio documental: leitura de PDF desde a sentença, rastreamento de indícios '
                  'com páginas e pesquisa pública de metadados no DataJud/CNJ. Não consulta o inteiro teor do PJe.'),
     docs_url='/docs',
@@ -36,13 +36,15 @@ app = FastAPI(
 )
 
 
-async def acesso(request: Request, x_api_key: str | None = Header(default=None, alias='X-API-Key')):
+async def acesso(request: Request, x_api_key: str | None = Header(default=None, alias='X-API-Key'),
+                 x_ip_token: str | None = Header(default=None, alias='X-IP-Token')):
     """Chave obrigatória para acesso remoto; sem chave, somente loopback no protótipo."""
     expected = os.environ.get('CEJUSC_API_KEY', '').strip()
     if expected:
         import hmac
-        if not x_api_key or not hmac.compare_digest(x_api_key, expected):
-            raise HTTPException(status_code=401, detail='Informe o cabeçalho X-API-Key válido.')
+        if not any(token and hmac.compare_digest(token, expected)
+                   for token in (x_api_key, x_ip_token)):
+            raise HTTPException(status_code=401, detail='Informe X-API-Key válido; X-IP-Token só é aceito se idêntico à chave do serviço.')
         return
     host = request.client.host if request.client else ''
     http_host = request.headers.get('host', '').split(':')[0].lower()
@@ -357,5 +359,12 @@ async def capacidades():
         'recurso':'triagem de PDF pesquisável, metadados DataJud por número CNJ e formatação de eventos com fonte',
         'limites':['Sem acesso autenticado ao PJe', 'Sem IA de interpretação jurídica embutida',
                   'Sem OCR automático', 'Requer revisão jurídica antes do uso em audiência'],
-        'cadastro_chat_jt':'Somente se a plataforma aceitar ferramentas OpenAPI/HTTP com cabeçalho X-API-Key.'
+        'cadastro_chat_jt':'Adaptador Gradio em /chatjt. O X-IP-Token criptografado requer validação de formato com TI do Chat-JT.',
+        'gradio_url_path':'/chatjt',
+        'operacoes_gradio':['consultar_cnj','analisar_texto','formatar_pauta']
     }
+
+
+# Gradio funciona em subcaminho e mantém a API/site existentes.
+from chatjt_adapter import montar_chatjt
+app = montar_chatjt(app)

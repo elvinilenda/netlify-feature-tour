@@ -1,32 +1,48 @@
-# Configuração da ferramenta no Chat-JT
+# Integração CEJUSC × Chat-JT — Versão 4
 
-**Observação:** a hospedagem em HTTPS deve ser realizada em ambiente aprovado pela TI. O arquivo `openapi.json` foi gerado com as rotas da aplicação, mas **não é um site hospedado**. O exemplo `SEU-DOMINIO` abaixo é ilustrativo.
+## Links no serviço Render existente
 
-## Exposição HTTP recomendada
+- **Site web:** `https://cejusc-api-trabalhista.onrender.com/`
+- **Interface Gradio:** `https://cejusc-api-trabalhista.onrender.com/chatjt`
+- **Descoberta de funções Gradio:** `https://cejusc-api-trabalhista.onrender.com/chatjt/gradio_api/info`
+- **Documentação API FastAPI:** `https://cejusc-api-trabalhista.onrender.com/docs`
+- **Saúde pública:** `https://cejusc-api-trabalhista.onrender.com/api/v1/saude`
 
-- Base: `https://SEU-DOMINIO/`
-- Contrato OpenAPI online: `https://SEU-DOMINIO/openapi.json`
-- Health: `https://SEU-DOMINIO/api/v1/saude`
-- Swagger online: `https://SEU-DOMINIO/docs`
+Esses caminhos são a configuração da versão 4. Apenas a URL raiz foi observada na implantação anterior; `/chatjt` precisa ser confirmado após o novo deploy.
 
-Confirme com a documentação de cadastro de ferramentas da **sua versão do Chat-JT** se exige contrato OpenAPI ou endpoints Gradio. São protocolos diferentes: **não há garantia de cadastro direto por `/openapi.json`**.
+## Como preencher a ferramenta (modo teste)
 
-## Cadastro sugerido, se admitir OpenAPI
+- **Nome:** Auditoria CEJUSC — Integração Gradio
+- **Descrição:** Localiza indícios documentais de atos processuais a partir da sentença e consulta movimentações públicas no CNJ, com indicação de limites e necessidade de conferência. Ferramenta não autenticada no PJe e não realiza parecer jurídico automático.
+- **URL da API Gradio:** `https://cejusc-api-trabalhista.onrender.com/chatjt`
+- **Vetorização:** desmarcada
+- **Cache:** `0`
+- **Chave da API no Chat-JT:** **não preencher antes de confirmar o formato exato do X-IP-Token** com o suporte da plataforma.
 
-- **Nome:** Auditoria Processual Trabalhista CEJUSC
-- **Descrição:** Consulta metadados públicos de processos trabalhistas por número CNJ e realiza triagem de PDFs/textos desde a sentença. Destaca separadamente recursos, depósitos recursais, custas, acórdãos, cálculos, bloqueios, penhoras, alvarás e acordos, com indicação de páginas e trechos. A saída é indicativa e depende de conferência jurídica.
-- **Contrato:** seu endereço HTTPS real terminado em `/openapi.json`.
-- **Autenticação:** chave `X-API-Key`, gerenciada pela equipe técnica (o campo no Chat-JT deve admitir esse cabeçalho). Nunca coloque a chave no prompt público.
-- **Acesso:** serviço privado institucional, conforme política do órgão.
+## Atenção à autenticação
 
-## Prompt breve para o assistente
+- A API REST antiga usa `X-API-Key: <CEJUSC_API_KEY>`.
+- A camada nova aceita também `X-IP-Token: <CEJUSC_API_KEY>`, **somente quando for exatamente igual à chave**. Não aceita strings arbitrárias como prova de autorização.
+- A tela do Chat-JT afirma que a chave inserida no cadastro **codifica informações do usuário** antes do envio em `X-IP-Token`. Logo, **a cadeia enviada provavelmente NÃO será igual à chave**, e essa configuração deve ser conferida com a TI/documentação do Chat-JT.
+- Não há especificação verificada de algoritmo, assinatura ou decodificação de tokens do Chat-JT. Não seria seguro assumir JWT ou simplesmente aceitar qualquer `X-IP-Token`.
+- Por essa razão, o endpoint Gradio é descobrível (`/chatjt/config` e `/chatjt/gradio_api/info`), mas **as funções exigem token válido**. É esperado que a primeira tentativa de execução no Chat-JT exija ajuste do modo de autenticação; registre o código de erro SEM copiar nenhuma chave.
+- Com chave recebida por `X-IP-Token` criptografado, peça à TI a especificação de formato/assinatura ou integração autorizada antes de tentar utilizar processos reais. É possível manter o Chat-JT público apenas para metadados públicos, mas a análise privada exige identidade/autorização real.
 
-> Use a ferramenta para consultar o número CNJ e localizar metadados e movimentações públicas. Se houver PDF, priorize o documento para conferir atos da sentença em diante. Identifique individualmente cada recurso, depósito, custas, acórdão, cálculos, bloqueio, penhora, depósito, alvará e acordo. Não trate indícios textuais como comprovação nem títulos de movimentação como teor da decisão. A ferramenta não acessa o PJe nem documentos restritos. Se faltar o inteiro teor, solicite o PDF ou indique dados não confirmados. Gere uma pauta cronológica CEJUSC apenas depois da conferência documental, com datas, valores, partes e páginas/IDs.
+## Funções Gradio nomeadas
 
-## Se o Chat-JT exigir Gradio
+- `consultar_cnj(numero_cnj)` — usa DataJud, **requer `DATAJUD_API_KEY`** no Render. Retorna apenas metadados públicos/indicativos.
+- `analisar_texto(texto, fase, pagina_sentenca)` — tria trechos **textuais**, a partir da sentença. Não extrai PDFs anexos do Chat-JT automaticamente.
+- `formatar_pauta(eventos_json)` — gera cronologia a partir de eventos informados e referenciados, não certifica fatos.
 
-O pacote original da **Auditoria Processual Trabalhista** possui endpoints Gradio próprios. Uma API FastAPI com OpenAPI **não substitui automaticamente** aquele protocolo. Nesse caso, mantenha o adaptador Gradio do pacote anterior ou peça à TI um conector OpenAPI suportado.
+O site atual continua permitindo upload de PDF pela API REST, protegido por `X-API-Key`; **não foi exposto um endpoint Gradio para upload** por risco de armazenamento temporário de autos em ferramenta pública.
 
-## Inspeção rápida
+## Checklist após Deploy
 
-Com o servidor iniciado em `http://127.0.0.1:8000`, abra `/docs`. Use dados de teste para experimentar os endpoints. A consulta CNJ requer `DATAJUD_API_KEY` obtida na wiki oficial do CNJ.
+1. Gerar **nova** `CEJUSC_API_KEY` porque o valor anterior apareceu em uma captura de tela. Guarde a chave apenas no Render/gerenciador de segredos.
+2. Confirmar a URL `/chatjt/config` (HTTP 200) e `/chatjt/gradio_api/info` (HTTP 200, três funções).
+3. Confirmar `/api/v1/saude` (HTTP 200).
+4. Consultar a documentação `/docs` e testar endpoint de texto com **dado fictício** usando `X-API-Key`.
+5. Cadastrar URL da ferramenta `/chatjt` no Chat-JT.
+6. Testar primeiro com informações **fictícias**. Se retornar não autorizado, conferir formato do `X-IP-Token` com TI do Chat-JT.
+
+**Não envie processos sigilosos ou chaves por conversa, repositório público ou formulário público.** O protótipo não implementa SSO, controle de retenção, auditoria institucional nem revisão automática de mérito.

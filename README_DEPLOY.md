@@ -1,36 +1,30 @@
-# CEJUSC API — versão para implantação no Render
+# CEJUSC API v4 — implantação Render (Chat-JT)
 
-**Estado:** aplicação preparada e testável localmente; NÃO foi publicada. **Não use PDFs sigilosos ou dados pessoais sem aprovação institucional.**
+A versão 4 adiciona **Gradio montado em `/chatjt`**, mantendo o site `/`, o Swagger `/docs` e a API `/api/v1`.
 
-## O que faz
-- Indexa texto pesquisável em PDFs a partir da sentença (não faz OCR nem interpreta o teor juridicamente).
-- Realça recursos, depósitos recursais e custas em grupos independentes no JSON (`indice_prioritario`).
-- Consulta capa e movimentações públicas no DataJud, com chave do CNJ (`DATAJUD_API_KEY`).
-- Formata em cronologia CEJUSC eventos fornecidos com datas e fontes por `/api/v1/pautas/formatar`.
-- Expõe documentação OpenAPI em `/openapi.json` e interface em `/`.
+## Hospedagem existente
 
-## Publicar (exige acesso à conta de hospedagem)
-1. Colocar estes arquivos em um repositório Git privado (ou outro repositório controlado).
-2. Conectar o Render à conta e criar um **Blueprint** utilizando `render.yaml`.
-3. Confirmar a geração de `CEJUSC_API_KEY` e preencher `DATAJUD_API_KEY` com a chave pública vigente no CNJ.
-4. Aguardar aprovação do deploy, depois testar `GET https://SEU-ENDERECO.onrender.com/api/v1/saude` (200), `GET /openapi.json` (200) e uma requisição autorizada (401 sem chave; 200 com chave).
-5. Copiar a URL HTTPS do Render e cadastrar como ferramenta **somente se** a edição do Chat-JT aceitar serviços HTTP OpenAPI (algumas instalações exigem ferramentas Gradio).
+Repositório: `elvinilenda/netlify-feature-tour`, branch: `cejusc-api`. O Render já utiliza a raiz do repositório e Python 3.
 
-## Integração
-- Endpoint: `https://SEU-ENDERECO.onrender.com/openapi.json` (exemplo, NÃO é URL real).
-- Autenticação: `X-API-Key: <valor de CEJUSC_API_KEY>`; configurar como segredo no cadastro da ferramenta, nunca no prompt público.
-- `POST /api/v1/analisar/pdf`: multipart/form-data com PDF pesquisável.
-- `POST /api/v1/analisar/texto`: corpo JSON texto + fase.
-- `GET /api/v1/processos/{numero_cnj}/consulta`: metadados do CNJ, não documentos.
-- `POST /api/v1/pautas/formatar`: recebe eventos já analisados e referências para compor a pauta.
-- `GET /api/v1/capacidades`: capacidades e limites.
+- Build: `pip install -r requirements.txt`
+- Start: `uvicorn api:app --host 0.0.0.0 --port $PORT`
+- URL base: `https://cejusc-api-trabalhista.onrender.com`
+- URL Gradio após o deploy: `https://cejusc-api-trabalhista.onrender.com/chatjt`
+- Descoberta Gradio: `/chatjt/gradio_api/info`
+- Teste de saúde: `/api/v1/saude`
+
+## Variáveis
+
+- `CEJUSC_API_KEY`: **obrigatória**, chave de serviço para proteger operações. Rotacione após qualquer exposição em captura de tela.
+- `DATAJUD_API_KEY`: necessária apenas à consulta CNJ. Obtenha no CNJ, não gere aleatoriamente.
+- `GRADIO_ANALYTICS_ENABLED=False`: recomendável para reduzir telemetria de aplicação.
+
+**Autenticação Chat-JT:** sua tela descreve `X-IP-Token` como dados de usuário *codificados* com a chave preenchida. A API aceita o cabeçalho apenas se corresponder *literalmente* a `CEJUSC_API_KEY`, mas não sabe decodificar um protocolo não documentado. Não preencha o campo de chave do Chat-JT nem o declare funcional sem confirmar o contrato criptográfico com o suporte/TI. Sem chave válida, as operações falham de maneira segura; a descoberta Gradio é pública.
 
 ## Segurança
-O Render Free expõe um serviço na internet e pode suspender por inatividade. Uma chave API única protege a entrada, mas **não** equivale a SSO, logs institucionais, retenção formal, controle de usuários ou autorização para trânsito de dados processuais. Uso em produção na Justiça do Trabalho requer revisão pela TI/segurança e respeito à LGPD.
 
-## Testes
+O serviço Render é público; não use processos sigilosos ou dados pessoais sem autorização institucional. O Gradio desta versão não recebe arquivos para evitar exposição de temporários. O site/API REST tem upload de PDF e exige `X-API-Key`, mas continua sendo um protótipo sem políticas de retenção institucionais. O plano Free pode exceder limites de memória ao instalar Gradio e PyMuPDF; verifique logs antes de aceitar a implantação.
+
+## Testes locais
+
 `pip install -r requirements.txt pytest pytest-asyncio && pytest -q`
-
-## Fontes
-- Render Blueprint: https://render.com/docs/blueprint-spec
-- CNJ DataJud: https://datajud-wiki.cnj.jus.br/api-publica/acesso/
