@@ -70,7 +70,17 @@ def gerar_docx(resultado:dict,caminho_pdf:str,max_prints:int=6)->bytes:
             p.add_run(f' (p. PDF {e["pagina_pdf"]})')
             cat=e['categoria'];pagina=e['pagina_pdf']
             if cat in PRINTS and pagina in paginas_print and pagina not in capturados:
-                img=arquivo[pagina-1].get_pixmap(matrix=fitz.Matrix(1.1,1.1),alpha=False)
+                origem=arquivo[pagina-1]
+                caixas=[fitz.Rect(b['bbox']) for b in origem.get_text('dict').get('blocks',[])
+                        if b.get('type') in (0,1) and b.get('bbox')]
+                if caixas:
+                    caixa=caixas[0]
+                    for c in caixas[1:]:caixa|=c
+                    # Print focado na área do documento, não nas margens vazias.
+                    regiao=fitz.Rect(caixa.x0-18,caixa.y0-18,caixa.x1+18,caixa.y1+18)&origem.rect
+                else:
+                    regiao=origem.rect
+                img=origem.get_pixmap(matrix=fitz.Matrix(1.25,1.25),clip=regiao,alpha=False)
                 blob=io.BytesIO(img.tobytes('png'))
                 pp=doc.add_paragraph();r=pp.add_run(f'Documento para conferência — página {pagina} do PDF original');r.italic=True;r.font.size=Pt(8)
                 doc.add_picture(blob,width=Cm(11.3))
