@@ -6,6 +6,7 @@ Nunca apresenta indícios textuais como decisões confirmadas.
 from __future__ import annotations
 
 import os
+import io
 import re
 import tempfile
 from pathlib import Path
@@ -15,10 +16,12 @@ from typing import Literal
 import httpx
 from starlette.concurrency import run_in_threadpool
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from motor import analisar_pdf, analisar_texto, relatorio
+from pauta_integrada import analisar_texto_integrado, analisar_pdf_integrado
+from exportar_pauta import gerar_docx
 
 ROOT = Path(__file__).resolve().parent
 MAX_PDF_BYTES = 70 * 1024 * 1024
@@ -57,6 +60,12 @@ class TextoEntrada(BaseModel):
     fase: Literal['liquidacao', 'execucao'] = 'liquidacao'
     pagina_sentenca: int = Field(default=0, ge=0, le=5000)
     numero_cnj: str | None = None
+
+
+class ProcessoEntradaAutomatica(BaseModel):
+    texto: str = Field(min_length=10, max_length=5_000_000, description='Texto dos autos, desde a sentença (ou integral, com páginas).')
+    numero_cnj: str | None = None
+    pagina_sentenca: int = Field(default=0, ge=0, le=5000)
 
 
 class EventoConferido(BaseModel):
@@ -287,6 +296,81 @@ async def saude():
             'autenticacao_configurada': bool(os.environ.get('CEJUSC_API_KEY'))}
 
 
+@app.post('/api/v2/analisar/texto', tags=['Pauta automática única'], dependencies=[Depends(acesso)])
+async def analisar_processo_texto_auto(entrada: ProcessoEntradaAutomatica):
+    """Avalia, numa leitura, critérios de LIQUIDAÇÃO e EXECUÇÃO sem escolher fase."""
+    try:
+        return await run_in_threadpool(analisar_texto_integrado, entrada.texto, entrada.numero_cnj, entrada.pagina_sentenca)
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+
+
+@app.post('/api/v2/analisar/pdf', tags=['Pauta automática única'], dependencies=[Depends(acesso)])
+async def analisar_processo_pdf_auto(
+    arquivo: UploadFile = File(description='PDF pesquisável, até 70 MB'),
+    numero_cnj: str | None = Form(None),
+    pagina_sentenca: int = Form(0, ge=0),
+):
+    if not arquivo.filename or not arquivo.filename.lower().endswith('.pdf'):
+        raise HTTPException(422, 'Envie um PDF válido.')
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix='cejusc_', suffix='.pdf',delete=False) as f:
+            path=Path(f.name)
+            total=0
+            head=True
+            while chunk := await arquivo.read(1024*1024):
+                total += len(chunk)
+                if total>MAX_PDF_BYTES:raise HTTPException(413, 'O PDF excede 70 MB.')
+                if head:
+                    head=False
+                    if not chunk.startswith(b'%PDF-'): raise HTTPException(422,'Arquivo não é PDF.')
+                f.write(chunk)
+        try:
+            return await run_in_threadpool(analisar_pdf_integrado, str(path), numero_cnj, pagina_sentenca)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+    finally:
+        await arquivo.close()
+        if path: path.unlink(missing_ok=True)
+
+
+@app.post('/api/v2/analisar/pdf/docx', tags=['Pauta automática única'], dependencies=[Depends(acesso)])
+async def exportar_pauta_pdf(
+    arquivo: UploadFile = File(description='PDF pesquisável, até 70 MB'),
+    numero_cnj: str | None = Form(None),
+    pagina_sentenca: int = Form(0,ge=0),
+):
+    """Gera DOCX no padrão cronológico CEJUSC, com prints de páginas relevantes.
+
+    Não incorpora prints quando o PDF não tem páginas acessíveis; nunca alega prova
+    confirmada automaticamente.
+    """
+    if not arquivo.filename or not arquivo.filename.lower().endswith('.pdf'):
+        raise HTTPException(422,'Envie PDF válido.')
+    path=None
+    try:
+        with tempfile.NamedTemporaryFile(prefix='cejusc_',suffix='.pdf',delete=False) as f:
+            path=Path(f.name);tamanho=0;primeiro=True
+            while chunk:=await arquivo.read(1024*1024):
+                tamanho+=len(chunk)
+                if tamanho>MAX_PDF_BYTES:raise HTTPException(413,'PDF excede 70 MB.')
+                if primeiro:
+                    primeiro=False
+                    if not chunk.startswith(b'%PDF-'):raise HTTPException(422,'Arquivo não é PDF.')
+                f.write(chunk)
+        try:
+            resultado=await run_in_threadpool(analisar_pdf_integrado,str(path),numero_cnj,pagina_sentenca)
+            dados=await run_in_threadpool(gerar_docx,resultado,str(path))
+        except ValueError as exc:
+            raise HTTPException(422,detail=str(exc)) from exc
+        return StreamingResponse(io.BytesIO(dados),media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                 headers={'Content-Disposition':'attachment; filename="pauta_cejusc_preliminar.docx"'})
+    finally:
+        await arquivo.close()
+        if path:path.unlink(missing_ok=True)
+
+
 @app.post('/api/v1/analisar/texto', tags=['Análise documental'], dependencies=[Depends(acesso)])
 async def analisar_texto_endpoint(entrada: TextoEntrada):
     try:
@@ -356,12 +440,12 @@ async def formatar_pauta(entrada: PautaEntrada):
 async def capacidades():
     return {
         'aplicacao':'CEJUSC – análise documental',
-        'recurso':'triagem de PDF pesquisável, metadados DataJud por número CNJ e formatação de eventos com fonte',
+        'recurso':'análise textual conjunta de liquidação e execução, metadados públicos CNJ e pauta cronológica rastreável',
         'limites':['Sem acesso autenticado ao PJe', 'Sem IA de interpretação jurídica embutida',
                   'Sem OCR automático', 'Requer revisão jurídica antes do uso em audiência'],
         'cadastro_chat_jt':'Adaptador Gradio em /chatjt. O X-IP-Token criptografado requer validação de formato com TI do Chat-JT.',
         'gradio_url_path':'/chatjt',
-        'operacoes_gradio':['consultar_cnj','analisar_texto','formatar_pauta']
+        'operacoes_gradio':['analisar_processo']
     }
 
 

@@ -1,74 +1,53 @@
-"""Testes locais de interface Gradio e autenticação; não dependem da rede."""
+"""Testes para integração de ferramenta única no Chat-JT, sem rede."""
+import asyncio,sys
 from pathlib import Path
-import sys
-import asyncio
-import json
-import pytest
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from fastapi.testclient import TestClient
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import gradio as gr
+import pytest
+from fastapi.testclient import TestClient
 import api
-from chatjt_adapter import _autorizar, consultar_cnj, triagem_texto, formatar_pauta
+from chatjt_adapter import _autorizar,analisar_processo
+
+class Request:
+    def __init__(self,headers=None):self.headers=headers or {}
 
 
-class Requisicao:
-    def __init__(self, **cabecalhos):
-        self.headers = cabecalhos
+def test_gradio_uma_funcao_automatica():
+    client=TestClient(api.app)
+    assert client.get('/chatjt').status_code==200
+    assert client.get('/').status_code==200
+    assert set(client.get('/chatjt/gradio_api/info').json()['named_endpoints'])=={'/analisar_processo'}
 
 
-def test_gradio_descoberta_e_site_preservado():
-    c = TestClient(api.app)
-    assert c.get('/').status_code == 200
-    assert c.get('/docs').status_code == 200
-    assert c.get('/chatjt').status_code == 200
-    config = c.get('/chatjt/config').json()
-    assert config['mode'] == 'blocks'
-    info = c.get('/chatjt/gradio_api/info').json()
-    assert {'/consultar_cnj','/analisar_texto','/formatar_pauta'} <= set(info['named_endpoints'])
-    # Interface de ferramenta não recebe arquivos por Gradio; API REST protegida mantém o PDF.
-    assert all(component.get('type') != 'file' for component in config['components'])
+def test_credencial_nao_exposta(monkeypatch):
+    monkeypatch.setenv('CEJUSC_API_KEY','EXEMPLO_NAO_REAL')
+    with pytest.raises(gr.Error):_autorizar(Request())
+    with pytest.raises(gr.Error):_autorizar(Request({'x-ip-token':'TOKEN_CODIFICADO'}))
+    _autorizar(Request({'x-api-key':'EXEMPLO_NAO_REAL'}))
 
 
-def test_chave_exigida_sem_fallback_publico(monkeypatch):
-    monkeypatch.delenv('CEJUSC_API_KEY', raising=False)
+def test_gradio_analisa_as_duas_sem_seletor(monkeypatch):
+    monkeypatch.setenv('CEJUSC_API_KEY','EXEMPLO_NAO_REAL')
+    texto='''[PÁGINA 1]
+20/06/2025 - SENTENÇA
+Julgo parcialmente procedentes os pedidos.
+[PÁGINA 2]
+15/07/2025 - ACÓRDÃO TRT
+O recurso foi parcialmente provido.
+[PÁGINA 3]
+20/08/2025 - CÁLCULOS
+Apurado crédito líquido de R$ 1.500,00.
+[PÁGINA 4]
+03/09/2025 - SISBAJUD
+Bloqueio positivo de R$ 100,00.''' 
+    result=asyncio.run(analisar_processo('',texto,None,Request({'x-api-key':'EXEMPLO_NAO_REAL'})))
+    assert 'SENTENÇA' in result
+    assert 'CÁLCULOS' in result
+    assert 'SISBAJUD' in result
+    assert 'EXECUÇÃO' in result
+
+
+def test_gradio_sem_credencial_bloqueia(monkeypatch):
+    monkeypatch.setenv('CEJUSC_API_KEY','EXEMPLO_NAO_REAL')
     with pytest.raises(gr.Error):
-        _autorizar(Requisicao())
-    monkeypatch.setenv('CEJUSC_API_KEY','VALOR_INVENTADO_TESTE')
-    with pytest.raises(gr.Error):
-        _autorizar(Requisicao())
-    with pytest.raises(gr.Error):
-        _autorizar(Requisicao(**{'x-ip-token':'qualquer-valor-nao-assinado'}))
-    _autorizar(Requisicao(**{'x-api-key':'VALOR_INVENTADO_TESTE'}))
-    _autorizar(Requisicao(**{'x-ip-token':'VALOR_INVENTADO_TESTE'}))
-
-
-def test_rest_tambem_aceita_chave_literal_x_ip_token(monkeypatch):
-    monkeypatch.setenv('CEJUSC_API_KEY','TESTE_SOMENTE_NAO_USAR_EM_PRODUCAO')
-    c = TestClient(api.app)
-    data={'texto':'SENTENÇA com relatório de prova pericial e honorários sucumbenciais em 15%.','fase':'liquidacao'}
-    assert c.post('/api/v1/analisar/texto',json=data).status_code == 401
-    assert c.post('/api/v1/analisar/texto',json=data,headers={'X-IP-Token':'valor-falso'}).status_code == 401
-    assert c.post('/api/v1/analisar/texto',json=data,headers={'X-IP-Token':'TESTE_SOMENTE_NAO_USAR_EM_PRODUCAO'}).status_code == 200
-
-
-def test_consulta_cnj_e_tratamento_de_erro(monkeypatch):
-    monkeypatch.setenv('CEJUSC_API_KEY','SEGREDO_FICTICIO')
-    monkeypatch.delenv('DATAJUD_API_KEY',raising=False)
-    msg=asyncio.run(consultar_cnj('0011087-25.2017.5.15.0127', Requisicao(**{'x-api-key':'SEGREDO_FICTICIO'})))
-    assert 'DATAJUD' in msg
-    assert 'SEGREDO_FICTICIO' not in msg
-
-
-def test_texto_desde_sentenca_e_formatacao(monkeypatch):
-    monkeypatch.setenv('CEJUSC_API_KEY','SEGREDO_FICTICIO')
-    r=Requisicao(**{'x-api-key':'SEGREDO_FICTICIO'})
-    texto='[PÁGINA 1]\nPETIÇÃO INICIAL - pagamento R$ 1.000,00\n[PÁGINA 2]\nSENTENÇA\nAnte o exposto, JULGO PARCIALMENTE PROCEDENTES os pedidos.\n[PÁGINA 3]\nDEPÓSITO RECURSAL R$ 5.000,00'
-    triagem=asyncio.run(triagem_texto(texto,'liquidacao',0,r))
-    assert 'depósito' in triagem.lower() or 'DEPOSITO' in triagem
-    json_pauta={'fase':'liquidacao','numero_cnj':'0011087-25.2017.5.15.0127',
-                'vara':'Vara do Trabalho de teste','polo_ativo':'Autor fictício','polo_passivo':'Empresa fictícia',
-                'eventos':[{'data':'01/03/2020','ato':'SENTENÇA','descricao':'Deferidas verbas fictícias em R$ 1.000,00','pagina_pdf':2}]}
-    pauta=asyncio.run(formatar_pauta(json.dumps(json_pauta),r))
-    assert '01/03/2020' in pauta
-    assert 'p. PDF 2' in pauta
-    assert 'NÃO CERTIFICA' in pauta.upper()
+        asyncio.run(analisar_processo('','teste processual fictício',None,Request()))

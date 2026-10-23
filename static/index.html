@@ -22,16 +22,16 @@
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:10px;padding:12px 16px;font-weight:750;font-size:14px;cursor:pointer}.btn.main{background:var(--brand);color:#fff;width:100%;margin-top:5px}.btn.main:hover{background:#0e4959}.btn.secondary{color:var(--brand2);background:#fff;border-color:#cbd9df;padding:9px 12px}.btn:disabled{opacity:.55;cursor:not-allowed}.hide{display:none!important}
     .results-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.results-head h2{margin:0}.status{font-size:12px;background:#edf5f4;color:#266d67;padding:6px 9px;border-radius:10px;font-weight:650}
     .empty{border:1px dashed var(--line);border-radius:13px;text-align:center;padding:55px 24px;color:var(--muted);background:#fafdfe}.empty .symbol{font-size:34px;margin-bottom:10px}.empty strong{display:block;color:#334b62;margin-bottom:8px}
-    .output{background:#f8fafb;border:1px solid #dce5eb;border-radius:12px;padding:17px;max-height:600px;min-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:13px/1.75 Consolas,Monaco,monospace;color:#253748}
+    .output{background:#fff;border:1px solid #dce5eb;border-radius:12px;padding:17px;max-height:700px;min-height:220px;overflow:auto;overflow-wrap:anywhere;font:14px/1.6 system-ui,-apple-system,sans-serif;color:#253748}.output .line{margin:0 0 8px}.output .separator{color:#c3d2d9;margin:4px 0 16px}.output .timeline-head{padding:12px;background:#e7f7e6;border-left:5px solid #27a441;border-radius:6px;font-weight:750;margin-bottom:15px}.output .timeline-head.exec{background:#edf0f3;border-left-color:#7d858d}.output .timeline-head.unknown{background:#fff6e7;border-left-color:#d9a543}.output .heading{font-weight:800;color:#173e58;margin:18px 0 9px}
     .actions{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}.alert{border-radius:11px;background:#fff7ea;border:1px solid #f2dab6;color:#79521e;padding:12px;font-size:12px;margin-top:13px}.error{border-color:#eac6c6;background:#fff2f1;color:#a23b3b}
     .foot{font-size:12px;color:var(--muted);margin-top:18px}.secondary-info{display:flex;gap:14px;flex-wrap:wrap;margin-top:15px}.feature{font-size:12px;color:#688092}.feature strong{color:#2f6070}
     @media(max-width:850px){.grid{grid-template-columns:1fr}.hero{display:block}.step{display:inline-block;margin-top:12px}.panel{padding:18px}.top{padding:15px 18px}.live{display:none}}
   </style>
 </head>
 <body>
-<header class="top"><div class="logo"><div class="emblem">JT</div><div><strong>Auditoria CEJUSC</strong><small>Análise documental trabalhista · API e site de auditoria</small></div></div><div class="live">Versão 3.0 · rastreabilidade de fontes</div></header>
+<header class="top"><div class="logo"><div class="emblem">JT</div><div><strong>Auditoria CEJUSC</strong><small>Análise documental trabalhista · API e site de auditoria</small></div></div><div class="live">Versão 5.0 · análise automática conjunta</div></header>
 <main>
-  <section class="hero"><div><h1>Pauta trabalhista, da sentença em diante.</h1><p class="sub">Localize recursos, depósitos recursais, custas, cálculos, bloqueios, penhoras e decisões com referências aos documentos. Consulta CNJ fornece apenas movimentações públicas.</p></div><div class="step">LIQUIDAÇÃO + EXECUÇÃO</div></section>
+  <section class="hero"><div><h1>Pauta trabalhista, da sentença em diante.</h1><p class="sub">Uma única leitura desde a sentença: identifique recursos, depósitos, custas, cálculos, bloqueios, penhoras e decisões, com referências para conferência. A fase é identificada automaticamente; a consulta CNJ fornece apenas movimentações públicas.</p></div><div class="step">LIQUIDAÇÃO E EXECUÇÃO — SEM SELEÇÃO</div></section>
   <div class="grid">
     <section class="panel" aria-label="Análise">
       <h2>1. Fonte do processo</h2>
@@ -44,8 +44,10 @@
       <div id="pdfBox"><div class="field"><label for="file">Arquivo processual</label><div class="upload"><span class="ic">⇧</span><input id="file" type="file" accept=".pdf,application/pdf" aria-label="Selecionar PDF"></div><p class="hint">PDF pesquisável · até 70 MB · sem OCR automático</p></div></div>
       <div id="textBox" class="hide"><div class="field"><label for="text">Texto integral do processo</label><textarea id="text" placeholder="[PÁGINA 1]&#10;PODER JUDICIÁRIO&#10;SENTENÇA&#10;..."></textarea></div></div>
       <div id="phaseBox">
-        <div class="field"><label>2. Tipo de relatório</label><div class="phases"><label><input type="radio" name="fase" value="liquidacao" checked><span class="phase green"><b>Liquidação</b><span>Barra verde · recursos e cálculos</span></span></label><label><input type="radio" name="fase" value="execucao"><span class="phase"><b>Execução</b><span>Barra cinza · cobrança e bens</span></span></label></div></div>
-        <div class="field"><label for="start">Página inicial da sentença</label><input id="start" type="number" min="0" value="0"><p class="hint">0 = detecção automática. Se falhar, informe a página correta.</p></div>
+        <div class="field"><label>2. Análise conjunta automática</label>
+          <p class="hint">A ferramenta confere critérios de liquidação e execução na mesma leitura, identifica a fase provável e produz cronologia desde a sentença. Não é necessário escolher uma fase.</p>
+        </div>
+        <div class="field"><label for="start">Página inicial da sentença (opcional)</label><input id="start" type="number" min="0" value="0"><p class="hint">0 = localizar automaticamente. Informe apenas se a detecção falhar.</p></div>
       </div>
       <div class="field"><label for="key">Chave de acesso da API (se configurada)</label><input type="password" id="key" autocomplete="off" placeholder="Chave fornecida pela instituição"><p class="hint">A chave não é armazenada pelo navegador.</p></div>
       <button class="btn main" id="run" type="button">Analisar processo →</button>
@@ -54,8 +56,8 @@
     <section class="panel" aria-live="polite">
       <div class="results-head"><h2>Resultado da análise</h2><span class="status" id="status">Pronto para análise</span></div>
       <div id="empty" class="empty"><div class="symbol">▤</div><strong>Nenhuma análise realizada</strong><p>Envie um documento ou consulte um número CNJ para visualizar as evidências e movimentações.</p></div>
-      <div id="results" class="hide"><div class="actions"><button class="btn secondary" id="copy">Copiar relatório</button><button class="btn secondary" id="saveMd">Baixar .md</button><button class="btn secondary" id="saveJson">Baixar .json</button><button class="btn secondary" id="showJson">Ver JSON</button></div><pre class="output" id="out"></pre><div class="alert" id="note"></div></div>
-      <p class="foot">Triagem automatizada: pistas textuais exigem leitura do documento original. A API não acessa autos sigilosos nem autentica no PJe.</p>
+      <div id="results" class="hide"><div class="actions"><button class="btn secondary" id="copy">Copiar relatório</button><button class="btn secondary hide" id="saveDocx">Baixar pauta .docx + prints</button><button class="btn secondary" id="saveMd">Baixar .md</button><button class="btn secondary" id="saveJson">Baixar .json</button><button class="btn secondary" id="showJson">Ver JSON</button></div><div class="output" id="out"></div><div class="alert" id="note"></div></div>
+      <p class="foot">Cronologia preliminar automática: provas e valores exigem conferência do documento original. A API não acessa autos sigilosos nem autentica no PJe.</p>
     </section>
   </div>
 </main>
@@ -71,38 +73,65 @@
     $('phaseBox').classList.toggle('hide',tab==='cnj');
     $('run').textContent=tab==='cnj'?'Consultar número CNJ →':'Analisar processo →';
   }));
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function renderMarkdownSafe(input, phase){
+    let lines=String(input||'').split('\n');
+    return lines.map((l,i)=>{
+      let t=l.trim();if(!t)return '';
+      if(t==='.')return '<div class="separator">.</div>';
+      let html=escapeHtml(t).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+      let klass=i===0?'timeline-head '+(phase==='EXECUÇÃO'?'exec':phase?.startsWith('LIQUIDAÇÃO')?'':'unknown'):
+          t.startsWith('## ')?'heading':'line';
+      if(t.startsWith('## '))html=html.replace(/^## /,'');
+      return '<div class="'+klass+'">'+html+'</div>';
+    }).join('');
+  }
+  function showReport(view){$('out').innerHTML=renderMarkdownSafe(view,last?.fase_identificada);}
   function clearResults(){ $('empty').classList.add('hide');$('results').classList.remove('hide'); }
   function showError(t){ clearResults();$('status').textContent='Falha na análise';$('out').textContent=t;$('note').textContent='Confira os campos e as credenciais configuradas no servidor.';$('note').classList.add('error'); }
   function headers(){const h={};if($('key').value.trim())h['X-API-Key']=$('key').value.trim();return h;}
   $('run').addEventListener('click',async()=>{
     $('run').disabled=true;$('run').textContent='Processando…';$('status').textContent='Consultando';
     try{
-      let url,opt;const number=$('cnj').value.trim();let fase=document.querySelector('[name="fase"]:checked').value;
+      let url,opt;const number=$('cnj').value.trim();
       if(tab==='cnj'){
         if(!number)throw new Error('Informe o número CNJ.');
         url='/api/v1/processos/'+encodeURIComponent(number)+'/consulta';opt={headers:headers()};
       }else if(tab==='pdf'){
         let file=$('file').files[0];if(!file)throw new Error('Selecione um PDF para análise.');
-        let fd=new FormData();fd.set('arquivo',file);fd.set('fase',fase);fd.set('pagina_sentenca',$('start').value||'0');if(number)fd.set('numero_cnj',number);
-        url='/api/v1/analisar/pdf';opt={method:'POST',headers:headers(),body:fd};
+        let fd=new FormData();fd.set('arquivo',file);fd.set('pagina_sentenca',$('start').value||'0');if(number)fd.set('numero_cnj',number);
+        url='/api/v2/analisar/pdf';opt={method:'POST',headers:headers(),body:fd};
       }else{
         if(!$('text').value.trim())throw new Error('Cole um texto processual.');
-        url='/api/v1/analisar/texto';opt={method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({texto:$('text').value,fase,pagina_sentenca:Number($('start').value||0),numero_cnj:number||null})};
+        url='/api/v2/analisar/texto';opt={method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({texto:$('text').value,pagina_sentenca:Number($('start').value||0),numero_cnj:number||null})};
       }
       const r=await fetch(url,opt);const j=await r.json();
       if(!r.ok)throw new Error(typeof j.detail==='object'?j.detail.mensagem||JSON.stringify(j.detail):j.detail||'Erro '+r.status);
-      last=j;report=j.relatorio_markdown||j.previa_markdown||JSON.stringify(j,null,2);
-      clearResults();$('out').textContent=report;$('note').classList.remove('error');
-      $('note').textContent=tab==='cnj'?'Consulta pública: não contém inteiro teor da sentença, acórdãos ou comprovantes. Anexe PDF para especificações.':'Atenção: o relatório é triagem de indícios. Confira provas, valores e páginas antes de elaborar a pauta definitiva.';
-      $('status').textContent=tab==='cnj'?'Metadados consultados':'Triagem concluída';
+      last=j;report=j.pauta_markdown||j.relatorio_markdown||j.previa_markdown||JSON.stringify(j,null,2);
+      clearResults();showReport(report);$('note').classList.remove('error');$('saveDocx').classList.toggle('hide',tab!=='pdf');
+      $('note').textContent=tab==='cnj'?'Consulta pública: não contém inteiro teor da sentença, acórdãos ou comprovantes. Anexe PDF para especificações.':'Pauta preliminar: critérios de liquidação e execução avaliados conjuntamente. Confira decisões, valores e páginas antes da audiência.';
+      $('status').textContent=tab==='cnj'?'Metadados consultados':'Prévia conjunta gerada';
     }catch(e){showError(String(e.message||e));}
     finally{$('run').disabled=false;$('run').textContent=tab==='cnj'?'Consultar número CNJ →':'Analisar processo →';}
   });
   function download(content,type,name){const blob=new Blob([content],{type});let url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
+  $('saveDocx').addEventListener('click',async()=>{
+    const f=$('file').files[0];if(!f)return;
+    const btn=$('saveDocx');btn.disabled=true;btn.textContent='Gerando documento…';
+    try{
+      const fd=new FormData();fd.set('arquivo',f);fd.set('pagina_sentenca',$('start').value||'0');
+      if($('cnj').value.trim())fd.set('numero_cnj',$('cnj').value.trim());
+      const resp=await fetch('/api/v2/analisar/pdf/docx',{method:'POST',headers:headers(),body:fd});
+      if(!resp.ok)throw new Error('Falha ao exportar DOCX ('+resp.status+').');
+      const blob=await resp.blob();let u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;
+      a.download='pauta_cejusc_preliminar.docx';a.click();setTimeout(()=>URL.revokeObjectURL(u),3000);
+    }catch(e){alert(String(e.message||e));}
+    finally{btn.disabled=false;btn.textContent='Baixar pauta .docx + prints';}
+  });
   $('copy').addEventListener('click',()=>navigator.clipboard?.writeText(report));
   $('saveMd').addEventListener('click',()=>download(report,'text/markdown;charset=utf-8','relatorio_cejusc.md'));
   $('saveJson').addEventListener('click',()=>{if(last)download(JSON.stringify(last,null,2),'application/json;charset=utf-8','auditoria_cejusc.json');});
-  $('showJson').addEventListener('click',()=>{if(last){const showing=$('showJson').textContent==='Ver relatório';$('out').textContent=showing?report:JSON.stringify(last,null,2);$('showJson').textContent=showing?'Ver JSON':'Ver relatório';}});
+  $('showJson').addEventListener('click',()=>{if(last){const showing=$('showJson').textContent==='Ver relatório';if(showing)showReport(report);else $('out').textContent=JSON.stringify(last,null,2);$('showJson').textContent=showing?'Ver JSON':'Ver relatório';}});
 })();
 </script>
 </body></html>

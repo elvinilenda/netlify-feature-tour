@@ -133,7 +133,9 @@ def _inicio_sentenca(paginas: list[Pagina], indicacao: int) -> tuple[int | None,
         text = normalizar(pag.texto)
         near = normalizar(' '.join(x.texto for x in paginas[i:min(i+2, len(paginas))]))
         titulo = bool(re.search(r'(?m)^\s*(?:poder judiciario.*\n)?\s*sentenca(?:\s*\n|\s*[-–:]\s*)', text))
-        dispositivo = bool(re.search(r'\b(?:julgo|condeno|dispositivo|ante o exposto)\b', near))
+        # Pautas CEJUSC adotam o cabeçalho "DD/MM/AAAA - SENTENÇA".
+        titulo = titulo or bool(re.search(r'(?m)^\s*[0-3]?\d[/.-][01]?\d[/.-](?:19|20)\d{2}\s*[-–—:]\s*sentenca\b', text))
+        dispositivo = bool(re.search(r'\b(?:julgo|julgou|condeno|condenou|dispositivo|ante o exposto|procedentes|improcedentes)\b', near))
         # Um sumário que apenas lista 'SENTENÇA' não basta para localizar o marco.
         if titulo and dispositivo:
             return i, 'Início detectado por título SENTENÇA e termos decisórios; validar a página indicada.'

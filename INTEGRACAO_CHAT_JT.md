@@ -1,48 +1,22 @@
-# Integração CEJUSC × Chat-JT — Versão 4
+# Integração Chat-JT — CEJUSC v5
 
-## Links no serviço Render existente
+**Endereço da ferramenta:** `https://cejusc-api-trabalhista.onrender.com/chatjt`
 
-- **Site web:** `https://cejusc-api-trabalhista.onrender.com/`
-- **Interface Gradio:** `https://cejusc-api-trabalhista.onrender.com/chatjt`
-- **Descoberta de funções Gradio:** `https://cejusc-api-trabalhista.onrender.com/chatjt/gradio_api/info`
-- **Documentação API FastAPI:** `https://cejusc-api-trabalhista.onrender.com/docs`
-- **Saúde pública:** `https://cejusc-api-trabalhista.onrender.com/api/v1/saude`
+**Nova função única para selecionar:** `/analisar_processo`.
 
-Esses caminhos são a configuração da versão 4. Apenas a URL raiz foi observada na implantação anterior; `/chatjt` precisa ser confirmado após o novo deploy.
+A ferramenta não pergunta a fase. Ao receber PDF, texto ou número CNJ, considera simultaneamente as exigências de liquidação e execução. Se houver apenas CNJ, a resposta é prévia pública DataJud; documentos integrais não são fornecidos pelo CNJ.
 
-## Como preencher a ferramenta (modo teste)
+Para uma nova versão aparecer no Chat-JT, atualize os dados da ferramenta que já está cadastrada: URL acima, descubra a função `/analisar_processo`, selecione-a e salve. Em alguns casos a aprovação institucional é necessária para ficar disponível aos assistentes. A função anterior `/analisar_texto` tinha parâmetro `fase` e deve ser desmarcada/substituída no cadastro.
 
-- **Nome:** Auditoria CEJUSC — Integração Gradio
-- **Descrição:** Localiza indícios documentais de atos processuais a partir da sentença e consulta movimentações públicas no CNJ, com indicação de limites e necessidade de conferência. Ferramenta não autenticada no PJe e não realiza parecer jurídico automático.
-- **URL da API Gradio:** `https://cejusc-api-trabalhista.onrender.com/chatjt`
-- **Vetorização:** desmarcada
-- **Cache:** `0`
-- **Chave da API no Chat-JT:** **não preencher antes de confirmar o formato exato do X-IP-Token** com o suporte da plataforma.
+## Autenticação
 
-## Atenção à autenticação
+`CEJUSC_API_KEY` configurada no Render é necessária; a função aceita `X-API-Key` ou `X-IP-Token` **literal igual** à chave. A tela do Chat-JT relata que codifica as informações do usuário em `X-IP-Token`, cujo formato/assinatura não foi fornecido. **Não é possível validar um token codificado apenas conhecendo a chave literal.** Portanto, é indispensável teste institucional, sem autos reais, e suporte oficial para implementar verificação segura. Não remova o controle de acesso para fazer a ferramenta responder.
 
-- A API REST antiga usa `X-API-Key: <CEJUSC_API_KEY>`.
-- A camada nova aceita também `X-IP-Token: <CEJUSC_API_KEY>`, **somente quando for exatamente igual à chave**. Não aceita strings arbitrárias como prova de autorização.
-- A tela do Chat-JT afirma que a chave inserida no cadastro **codifica informações do usuário** antes do envio em `X-IP-Token`. Logo, **a cadeia enviada provavelmente NÃO será igual à chave**, e essa configuração deve ser conferida com a TI/documentação do Chat-JT.
-- Não há especificação verificada de algoritmo, assinatura ou decodificação de tokens do Chat-JT. Não seria seguro assumir JWT ou simplesmente aceitar qualquer `X-IP-Token`.
-- Por essa razão, o endpoint Gradio é descobrível (`/chatjt/config` e `/chatjt/gradio_api/info`), mas **as funções exigem token válido**. É esperado que a primeira tentativa de execução no Chat-JT exija ajuste do modo de autenticação; registre o código de erro SEM copiar nenhuma chave.
-- Com chave recebida por `X-IP-Token` criptografado, peça à TI a especificação de formato/assinatura ou integração autorizada antes de tentar utilizar processos reais. É possível manter o Chat-JT público apenas para metadados públicos, mas a análise privada exige identidade/autorização real.
+## Endpoints REST (para integração institucional independente do Gradio)
 
-## Funções Gradio nomeadas
+- `POST /api/v2/analisar/pdf` com `arquivo`, `numero_cnj` opcional e `pagina_sentenca` opcional. Retorna JSON de atos, páginas e `pauta_markdown`.
+- `POST /api/v2/analisar/texto` com `texto`, `numero_cnj` opcional e `pagina_sentenca` opcional. Retorna os mesmos campos.
+- `POST /api/v2/analisar/pdf/docx` com PDF para baixar um Word com a cronologia e até seis capturas relevantes para conferência.
+- `GET /api/v1/processos/{numero_cnj}/consulta` somente metadados públicos DataJud.
 
-- `consultar_cnj(numero_cnj)` — usa DataJud, **requer `DATAJUD_API_KEY`** no Render. Retorna apenas metadados públicos/indicativos.
-- `analisar_texto(texto, fase, pagina_sentenca)` — tria trechos **textuais**, a partir da sentença. Não extrai PDFs anexos do Chat-JT automaticamente.
-- `formatar_pauta(eventos_json)` — gera cronologia a partir de eventos informados e referenciados, não certifica fatos.
-
-O site atual continua permitindo upload de PDF pela API REST, protegido por `X-API-Key`; **não foi exposto um endpoint Gradio para upload** por risco de armazenamento temporário de autos em ferramenta pública.
-
-## Checklist após Deploy
-
-1. Gerar **nova** `CEJUSC_API_KEY` porque o valor anterior apareceu em uma captura de tela. Guarde a chave apenas no Render/gerenciador de segredos.
-2. Confirmar a URL `/chatjt/config` (HTTP 200) e `/chatjt/gradio_api/info` (HTTP 200, três funções).
-3. Confirmar `/api/v1/saude` (HTTP 200).
-4. Consultar a documentação `/docs` e testar endpoint de texto com **dado fictício** usando `X-API-Key`.
-5. Cadastrar URL da ferramenta `/chatjt` no Chat-JT.
-6. Testar primeiro com informações **fictícias**. Se retornar não autorizado, conferir formato do `X-IP-Token` com TI do Chat-JT.
-
-**Não envie processos sigilosos ou chaves por conversa, repositório público ou formulário público.** O protótipo não implementa SSO, controle de retenção, auditoria institucional nem revisão automática de mérito.
+**Segurança:** mantenha segredos apenas no Render, rotacione a chave já exibida em captura de tela, não inclua dados sigilosos em testes ou repositórios públicos. Sempre confira o inteiro teor antes de utilizar a pauta.

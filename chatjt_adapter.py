@@ -1,130 +1,77 @@
-"""Adaptador Gradio para descoberta e funções do Chat-JT.
+"""Ferramenta única Chat-JT. Analisa sempre conhecimento desde sentença, liquidação E execução.
 
-O cadastro de ferramenta do Chat-JT pode usar o protocolo Gradio, e NÃO OpenAPI.
-O X-IP-Token informado pelo Chat-JT pode conter identidade codificada; este projeto
-NÃO assume esquema de assinatura desconhecido. Somente compara um token que seja
-literalmente igual à chave de serviço; não autentica valores arbitrários.
+A saída é uma pauta preliminar rastreável, nunca substitui conferência do inteiro teor.
+X-IP-Token cifrado pelo Chat-JT NÃO pode ser decodificado por adivinhação.
 """
 from __future__ import annotations
 
 import asyncio
 import hmac
-import json
 import os
-from typing import Any
+from pathlib import Path
 
 import gradio as gr
-from pydantic import ValidationError
 
 
 def _autorizar(request: gr.Request | None) -> None:
-    """Proteção fail-closed; metadados Gradio permanecem públicos para descoberta.
-
-    A tela pública Gradio não dá autorização para executar operações. Somente
-    X-API-Key ou X-IP-Token *literalmente igual à chave* é aceito. Tokens
-    de usuário criptografados pelo Chat-JT requerem acordo técnico/documentado.
-    """
     esperado = os.environ.get('CEJUSC_API_KEY', '').strip()
     if not esperado:
-        raise gr.Error('Serviço bloqueado: configurar CEJUSC_API_KEY no Render.')
+        raise gr.Error('Serviço protegido. Configure CEJUSC_API_KEY no Render.')
     cab = request.headers if request is not None else {}
-    candidatos = (cab.get('x-api-key', ''), cab.get('x-ip-token', ''))
-    if not any(valor and hmac.compare_digest(valor, esperado) for valor in candidatos):
-        raise gr.Error(
-            '401: credencial inválida. A ferramenta requer X-API-Key ou X-IP-Token '
-            'literal com a chave do serviço. Se o Chat-JT enviar X-IP-Token '
-            'codificado, é necessária integração institucional para verificação.'
-        )
+    candidatos = (cab.get('x-api-key', ''), cab.get('x-ip-token',''))
+    if not any(v and hmac.compare_digest(v, esperado) for v in candidatos):
+        raise gr.Error('401: acesso não autorizado. É necessário adequar a autenticação do Chat-JT (X-IP-Token) à política institucional.')
 
 
 def _erro_publico(exc: Exception) -> str:
-    """Erros curtos, sem reprodução de payload, chave ou documentos nos logs."""
-    status = getattr(exc, 'status_code', None)
-    if status == 503:
-        return 'Consulta DataJud indisponível: chave DATAJUD_API_KEY não configurada.'
-    if status == 422:
-        return 'Número CNJ inválido; confira a numeração trabalhista de 20 dígitos.'
-    if status == 502:
-        return 'Falha de comunicação com DataJud/CNJ; consulte os logs do servidor.'
-    return f'Não foi possível concluir a operação ({type(exc).__name__}).'
+    code=getattr(exc, 'status_code', None)
+    if code==503:return 'Consulta pública DataJud indisponível: configure DATAJUD_API_KEY.'
+    if code==422:return 'Confira o número CNJ informado.'
+    return f'Não foi possível concluir ({type(exc).__name__}). Confira os logs sem compartilhar dados processuais.'
 
 
-async def consultar_cnj(numero_cnj: str, request: gr.Request) -> str:
-    """Consultar APENAS metadados e movimentações públicos do DataJud por CNJ."""
-    _autorizar(request)
-    from api import _consultar_datajud, _pauta_publica
-    try:
-        dados = await _consultar_datajud(numero_cnj.strip())
-    except Exception as exc:
-        return _erro_publico(exc)
-    return _pauta_publica(dados) + '\n\n**AVISO:** sem teor integral, valores ou decisões confirmadas.'
+async def analisar_processo(numero_cnj: str, texto: str, arquivo: str | None, request: gr.Request) -> str:
+    """Função ÚNICA: analisar critérios de liquidação e execução em paralelo desde a sentença.
 
-
-async def triagem_texto(texto: str, fase: str, pagina_sentenca: int, request: gr.Request) -> str:
-    """Localizar INDÍCIOS documentais após sentença em TEXTO fornecido no Chat-JT.
-
-    A saída NÃO constitui parecer jurídico. Não enviar autos sigilosos para
-    servidor público sem autorização institucional e política de dados.
+    PDF > texto > CNJ (metadados apenas). Não seleciona fase.
     """
     _autorizar(request)
-    from motor import analisar_texto, relatorio
-    if not texto or len(texto) < 10:
-        return 'Texto insuficiente para triagem. Forneça trecho processual com sentença.'
-    if len(texto) > 300_000:
-        return 'Texto excede o limite deste conector (300.000 caracteres). Divida o conteúdo.'
-    if fase not in ('liquidacao', 'execucao'):
-        return 'Fase inválida: selecione liquidacao ou execucao.'
+    from pauta_integrada import analisar_texto_integrado, analisar_pdf_integrado
+    cnj=(numero_cnj or '').strip() or None
     try:
-        resultado = await asyncio.to_thread(analisar_texto, texto, fase, int(pagina_sentenca))
+        if arquivo:
+            path=Path(str(arquivo))
+            if not path.exists() or path.suffix.lower()!='.pdf':
+                return 'Anexe um PDF pesquisável válido.'
+            if path.stat().st_size > 70*1024*1024:
+                return 'PDF excede 70 MB.'
+            result=await asyncio.to_thread(analisar_pdf_integrado,str(path),cnj,0)
+            return result['pauta_markdown']
+        if texto and texto.strip():
+            if len(texto)>300_000:
+                return 'Texto acima de 300 mil caracteres para o conector Gradio. Use o PDF no site ou divida em volumes.'
+            result=await asyncio.to_thread(analisar_texto_integrado,texto,cnj,0)
+            return result['pauta_markdown']
+        if cnj:
+            from api import _consultar_datajud,_pauta_publica
+            dados=await _consultar_datajud(cnj)
+            return _pauta_publica(dados)+'\n\n**NECESSÁRIO:** anexe o PDF para a pauta completa. Metadados públicos não informam valores, comprovantes ou reformas de acórdãos.'
+        return 'Informe o número CNJ, anexe um PDF pesquisável ou cole o texto do processo.'
     except Exception as exc:
         return _erro_publico(exc)
-    return relatorio(resultado) + '\n\n**ATENÇÃO:** indícios não substituem o exame do documento original.'
-
-
-async def formatar_pauta(eventos_json: str, request: gr.Request) -> str:
-    """Formatar eventos com data e ID/página, fornecidos após conferência documental.
-
-    Recebe JSON conforme PautaEntrada e não inventa nem confirma fatos.
-    """
-    _autorizar(request)
-    from api import PautaEntrada, _gerar_pauta_confirmavel
-    if len(eventos_json or '') > 250_000:
-        return 'JSON excede o limite de 250.000 caracteres.'
-    try:
-        dados: Any = json.loads(eventos_json)
-        entrada = PautaEntrada.model_validate(dados)
-        saida = _gerar_pauta_confirmavel(entrada)
-    except (ValueError, ValidationError, TypeError):
-        return 'JSON inválido ou incompleto. Informe fase, CNJ, Vara, partes e eventos com data e página/ID.'
-    return saida['pauta_markdown']
 
 
 def montar_chatjt(app):
-    """Montar o Gradio em /chatjt sem alterar /, /docs nem /api/v1."""
-    with gr.Blocks(title='Ferramenta CEJUSC para Chat-JT') as interface:
-        gr.Markdown(
-            '# CEJUSC – integração Chat-JT\n'
-            'Ferramenta de **triagem documental**. Não substitui leitura dos autos. '
-            'Funções exigem autenticação; a estrutura Gradio é pública para descoberta.'
-        )
-        with gr.Tab('Consulta pública CNJ'):
-            cnj = gr.Textbox(label='Número CNJ', placeholder='0011087-25.2017.5.15.0127')
-            consulta = gr.Button('Consultar metadados públicos')
-            previa = gr.Textbox(label='Prévia (não certificada)', lines=12)
-            consulta.click(consultar_cnj, inputs=[cnj], outputs=[previa], api_name='consultar_cnj', queue=False)
-        with gr.Tab('Triagem de texto'):
-            conteudo = gr.Textbox(label='Texto extraído do processo', lines=8)
-            fase = gr.Dropdown(['liquidacao', 'execucao'], value='liquidacao', label='Fase')
-            pagina = gr.Number(label='Página da sentença (0 = localizar)', value=0, precision=0)
-            analisar = gr.Button('Identificar ocorrências')
-            rel = gr.Textbox(label='Indícios e páginas – conferência obrigatória', lines=12)
-            analisar.click(triagem_texto, inputs=[conteudo, fase, pagina], outputs=[rel],
-                          api_name='analisar_texto', queue=False)
-        with gr.Tab('Pauta a partir de eventos conferidos'):
-            dados = gr.Textbox(label='Eventos em JSON (PautaEntrada)', lines=8)
-            fmt = gr.Button('Formatar pauta')
-            pauta = gr.Textbox(label='Pauta – sujeita a conferência', lines=12)
-            fmt.click(formatar_pauta, inputs=[dados], outputs=[pauta], api_name='formatar_pauta', queue=False)
-    return gr.mount_gradio_app(app, interface, path='/chatjt',
-                               show_error=False, footer_links=[],
-                               max_file_size='1mb')
+    """Uma operação Gradio discoverable em /chatjt; resta da API permanece."""
+    with gr.Blocks(title='CEJUSC — Pauta Processual Automática') as interface:
+        gr.Markdown('# CEJUSC – pauta processual automática\n'
+                    '**Uma única análise**, desde a sentença, aplicando simultaneamente critérios de liquidação e execução. '
+                    'O sistema indica a fase provável, os atos datados e as páginas para conferência. '
+                    'Não substitui leitura jurídica integral dos documentos.')
+        numero=gr.Textbox(label='Número CNJ (opcional se já consta no PDF)', placeholder='0000000-00.2025.5.15.0000')
+        arquivo=gr.File(label='PDF do processo (opcional)',file_types=['.pdf'],type='filepath')
+        texto=gr.Textbox(label='Texto dos autos (opcional se usar PDF)',lines=5)
+        executar=gr.Button('Analisar processo completo — liquidação + execução', variant='primary')
+        saida=gr.Textbox(label='Pauta cronológica preliminar',lines=20)
+        executar.click(analisar_processo,inputs=[numero,texto,arquivo],outputs=[saida],api_name='analisar_processo',queue=False)
+    return gr.mount_gradio_app(app,interface,path='/chatjt',show_error=False)
